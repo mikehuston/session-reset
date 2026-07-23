@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Session Reset</title>
+  </head>
+  <body>
+    <header>
+      <h1>Session Reset</h1>
+      <p class="subtitle">
+        Closing the last tab of a site below clears its cookies after 5 seconds.
+      </p>
+    </header>
+
+    <!-- Add-site form -->
+    <form id="add-form" autocomplete="off">
+      <input
+        id="site-input"
+        type="text"
+        placeholder="e.g. linkedin.com"
+        aria-label="Website to add"
+        spellcheck="false"
+      />
+      <button type="submit">Add</button>
+    </form>
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <!-- Site list (rows injected by popup.js) -->
+    <ul id="site-list"></ul>
+    <p id="empty" class="empty">No sites yet. Add one above to get started.</p>
+
+    <!-- Recently reset: proof the extension is doing its job -->
+    <section id="history-section" hidden>
+      <h2>Recently reset</h2>
+      <ul id="history-list"></ul>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
