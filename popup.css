@@ -167,13 +167,28 @@ button:hover {
   margin-top: 12px;
 }
 
-/* Recently reset */
+/* Instagram feed filter */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Sections below the site list */
+#instagram-section,
 #history-section {
   margin-top: 16px;
   border-top: 1px solid var(--border);
   padding-top: 10px;
 }
 
+#instagram-section h2,
 #history-section h2 {
   margin: 0 0 6px;
   font-size: 12px;

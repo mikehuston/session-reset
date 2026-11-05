@@ -1,0 +1,8 @@
+/*
+ * The "Suggested for you" panel beside the feed, marked by instagram-feed.js.
+ * Removing the attribute restores it. Posts are never hidden here: ads and
+ * suggested posts are removed from the feed data by instagram-feed-data.js.
+ */
+[data-session-reset-hidden] {
+  display: none !important;
+}

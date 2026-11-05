@@ -15,8 +15,11 @@ is cleared.
 - Visible feedback: a toolbar badge flashes on each reset and the popup shows a
   "Recently reset" history (see [How to tell it worked](#how-to-tell-it-worked)).
 - Settings stored locally (`chrome.storage.local`); nothing leaves your machine.
-- **Minimal permissions:** only `storage` and `cookies` up front. Access to a
-  site's cookies is requested *per site*, when you add it — not broadly.
+- Instagram feed filter: hides ads and "Suggested for you" on the home feed, with
+  a toggle in the popup (on by default).
+- **Minimal permissions:** `storage` and `cookies`, plus access to
+  `www.instagram.com` for the feed filter (needs Chrome 111 or newer). Access to any other site's cookies is
+  requested *per site*, when you add it — not broadly.
 
 ## Load the unpacked extension
 
@@ -77,6 +80,33 @@ The extension logs each step to its own console:
   (and its subdomains) via the `cookies` API.
 - **`popup.*`** is the settings UI. Adding a site requests host access for just
   that site (`chrome.permissions.request`); removing it releases that access.
+- **`instagram-feed-data.js`** runs inside Instagram's own page code and removes
+  ads and suggested posts from the feed data before Instagram draws it.
+- **`instagram-feed.js`** (content script) passes the popup setting to that script
+  and hides the "Suggested for you" panel beside the feed, styled by
+  **`instagram-feed.css`**. Both only change what your browser shows, and send
+  nothing anywhere.
+
+### Instagram feed filter
+
+It's on by default. After switching it under **Instagram** in the popup, reload
+Instagram to see the change. To see what it removes, open DevTools on the feed
+(Cmd+Option+J) and look for lines like this in the Console:
+
+```
+[Session Reset] Removed 2 ads, 3 suggested posts from an Instagram feed page.
+```
+
+- Ads and suggested posts are removed from the data Instagram loads, not hidden
+  on the page. Hiding them on the page made scrolling bounce, because Instagram's
+  feed remembers each post's height.
+- Instagram labels each feed item as a regular post, an ad, or a suggestion, so
+  this works in any language. It relies on Instagram's internal data format,
+  though. If Instagram changes it, ads and suggestions simply show up again.
+- Once you've seen every recent post from people you follow, Instagram serves only
+  suggestions. When three loads in a row contain nothing else, the feed stops
+  there instead of fetching empty pages.
+- The panel beside the feed is only recognized when Instagram is set to English.
 
 ### Notes / limitations
 
@@ -96,3 +126,6 @@ The extension logs each step to its own console:
 | `popup.html`    | Popup markup                                        |
 | `popup.css`     | Popup styles                                        |
 | `popup.js`      | Popup logic + per-site permission requests          |
+| `instagram-feed-data.js` | Removes ads and suggested posts from Instagram's feed data |
+| `instagram-feed.js`      | Passes the popup setting along; hides the suggestions panel |
+| `instagram-feed.css`     | Hides the panel `instagram-feed.js` marks                   |

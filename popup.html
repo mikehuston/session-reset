@@ -31,6 +31,19 @@
     <ul id="site-list"></ul>
     <p id="empty" class="empty">No sites yet. Add one above to get started.</p>
 
+    <!-- Instagram feed filter (applied by instagram-feed-data.js and instagram-feed.js) -->
+    <section id="instagram-section">
+      <h2>Instagram</h2>
+      <div class="setting-row">
+        <label class="toggle">
+          <input id="instagram-filter" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+        <label for="instagram-filter">Hide ads and "Suggested for you" on the feed</label>
+      </div>
+      <p class="hint">Reload Instagram after changing this.</p>
+    </section>
+
     <!-- Recently reset: proof the extension is doing its job -->
     <section id="history-section" hidden>
       <h2>Recently reset</h2>

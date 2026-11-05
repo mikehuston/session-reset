@@ -16,6 +16,7 @@ const inputEl = document.getElementById("site-input");
 const errorEl = document.getElementById("error");
 const historySectionEl = document.getElementById("history-section");
 const historyListEl = document.getElementById("history-list");
+const instagramFilterEl = document.getElementById("instagram-filter");
 
 // ---------------------------------------------------------------------------
 // Storage helpers
@@ -208,6 +209,15 @@ formEl.addEventListener("submit", (event) => {
 });
 
 inputEl.addEventListener("input", clearError);
+
+// Instagram feed filter: on by default. Posts already loaded stay as they are,
+// so the change shows fully after Instagram is reloaded.
+chrome.storage.local.get({ instagramFeedFilter: true }).then(({ instagramFeedFilter }) => {
+  instagramFilterEl.checked = instagramFeedFilter;
+});
+instagramFilterEl.addEventListener("change", () => {
+  chrome.storage.local.set({ instagramFeedFilter: instagramFilterEl.checked });
+});
 
 // Keep the "Recently reset" list fresh if a reset happens while the popup is open.
 chrome.storage.onChanged.addListener((changes, area) => {

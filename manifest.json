@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Session Reset",
-  "version": "1.0.0",
-  "description": "Clears a site's cookies a few seconds after you close its last tab, so you start logged out on your next visit.",
+  "version": "1.1.0",
+  "minimum_chrome_version": "111",
+  "description": "Clears a site's cookies after you close its last tab, and hides ads and suggested posts on your Instagram feed.",
 
   "permissions": [
     "storage",
@@ -16,6 +17,21 @@
   "background": {
     "service_worker": "background.js"
   },
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["instagram-feed-data.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["instagram-feed.js"],
+      "css": ["instagram-feed.css"],
+      "run_at": "document_start"
+    }
+  ],
 
   "action": {
     "default_popup": "popup.html",
