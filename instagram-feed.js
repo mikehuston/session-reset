@@ -1,21 +1,24 @@
 /**
- * Session Reset — Instagram feed filter, page side (content script).
+ * Session Reset — Instagram filters, page side (content script).
  *
  * Two jobs:
- *   1. Pass the popup's on/off setting to instagram-feed-data.js, which removes
- *      ads and suggested posts from the feed data. That script runs in
- *      Instagram's own JavaScript world and can't read extension storage, so the
- *      setting goes through an attribute on the <html> element.
+ *   1. Pass the popup's on/off settings to instagram-feed-data.js, which filters
+ *      the feed and Reels data. That script runs in Instagram's own JavaScript
+ *      world and can't read extension storage, so each setting goes through an
+ *      attribute on the <html> element. instagram-feed.css also reads the Reels
+ *      attribute to hide the Reels button.
  *   2. Hide the "Suggested for you" accounts panel beside the feed. It isn't part
  *      of the feed data, so it's hidden in the page instead (instagram-feed.css).
  *      It sits outside the scrolling feed, so hiding it can't disturb scrolling.
  */
 (() => {
-  // Popup setting. The filter is on unless it has been switched off.
-  const SETTING_KEY = "instagramFeedFilter";
-
-  // Read by instagram-feed-data.js.
-  const SETTING_ATTR = "data-session-reset-instagram-filter";
+  // Popup settings (storage key -> <html> attribute). Each is on unless it has
+  // been switched off.
+  const FEED_SETTING_KEY = "instagramFeedFilter";
+  const SETTINGS = {
+    [FEED_SETTING_KEY]: "data-session-reset-instagram-filter",
+    instagramHideReels: "data-session-reset-instagram-reels",
+  };
 
   // Elements with this attribute are hidden by instagram-feed.css.
   const HIDDEN_ATTR = "data-session-reset-hidden";
@@ -68,9 +71,13 @@
     requestAnimationFrame(hideSuggestionsPanel);
   }
 
-  function applySetting(value) {
-    enabled = value !== false;
-    document.documentElement.setAttribute(SETTING_ATTR, enabled ? "on" : "off");
+  function applySetting(key, value) {
+    const on = value !== false;
+    document.documentElement.setAttribute(SETTINGS[key], on ? "on" : "off");
+    if (key !== FEED_SETTING_KEY) return;
+
+    // The suggestions panel follows the feed setting.
+    enabled = on;
     if (enabled) {
       queueCheck();
     } else {
@@ -80,12 +87,15 @@
     }
   }
 
-  chrome.storage.local.get(SETTING_KEY).then((stored) => applySetting(stored[SETTING_KEY]));
+  chrome.storage.local.get(Object.keys(SETTINGS)).then((stored) => {
+    Object.keys(SETTINGS).forEach((key) => applySetting(key, stored[key]));
+  });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes[SETTING_KEY]) {
-      applySetting(changes[SETTING_KEY].newValue);
-    }
+    if (area !== "local") return;
+    Object.keys(SETTINGS).forEach((key) => {
+      if (changes[key]) applySetting(key, changes[key].newValue);
+    });
   });
 
   // The panel appears after the page loads and again after client-side navigation.

@@ -16,7 +16,12 @@ const inputEl = document.getElementById("site-input");
 const errorEl = document.getElementById("error");
 const historySectionEl = document.getElementById("history-section");
 const historyListEl = document.getElementById("history-list");
-const instagramFilterEl = document.getElementById("instagram-filter");
+
+// Instagram toggles: storage key -> checkbox. Both are on by default.
+const INSTAGRAM_TOGGLES = {
+  instagramFeedFilter: document.getElementById("instagram-filter"),
+  instagramHideReels: document.getElementById("instagram-reels"),
+};
 
 // ---------------------------------------------------------------------------
 // Storage helpers
@@ -210,14 +215,19 @@ formEl.addEventListener("submit", (event) => {
 
 inputEl.addEventListener("input", clearError);
 
-// Instagram feed filter: on by default. Posts already loaded stay as they are,
-// so the change shows fully after Instagram is reloaded.
-chrome.storage.local.get({ instagramFeedFilter: true }).then(({ instagramFeedFilter }) => {
-  instagramFilterEl.checked = instagramFeedFilter;
+// Instagram toggles. Content already loaded stays as it is, so a change shows
+// fully after Instagram is reloaded.
+const instagramDefaults = Object.fromEntries(Object.keys(INSTAGRAM_TOGGLES).map((key) => [key, true]));
+chrome.storage.local.get(instagramDefaults).then((stored) => {
+  for (const [key, checkbox] of Object.entries(INSTAGRAM_TOGGLES)) {
+    checkbox.checked = stored[key];
+  }
 });
-instagramFilterEl.addEventListener("change", () => {
-  chrome.storage.local.set({ instagramFeedFilter: instagramFilterEl.checked });
-});
+for (const [key, checkbox] of Object.entries(INSTAGRAM_TOGGLES)) {
+  checkbox.addEventListener("change", () => {
+    chrome.storage.local.set({ [key]: checkbox.checked });
+  });
+}
 
 // Keep the "Recently reset" list fresh if a reset happens while the popup is open.
 chrome.storage.onChanged.addListener((changes, area) => {

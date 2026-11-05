@@ -15,8 +15,10 @@ is cleared.
 - Visible feedback: a toolbar badge flashes on each reset and the popup shows a
   "Recently reset" history (see [How to tell it worked](#how-to-tell-it-worked)).
 - Settings stored locally (`chrome.storage.local`); nothing leaves your machine.
-- Instagram feed filter: hides ads and "Suggested for you" on the home feed, with
-  a toggle in the popup (on by default).
+- Instagram feed filter: hides ads and "Suggested for you" on the home feed.
+- Instagram Reels blocker: hides the Reels button and empties the Reels tab, while
+  a reel someone sends you (or one you open from a search) still plays.
+- Both Instagram features have a toggle in the popup (on by default).
 - **Minimal permissions:** `storage` and `cookies`, plus access to
   `www.instagram.com` for the feed filter (needs Chrome 111 or newer). Access to any other site's cookies is
   requested *per site*, when you add it — not broadly.
@@ -81,11 +83,12 @@ The extension logs each step to its own console:
 - **`popup.*`** is the settings UI. Adding a site requests host access for just
   that site (`chrome.permissions.request`); removing it releases that access.
 - **`instagram-feed-data.js`** runs inside Instagram's own page code and removes
-  ads and suggested posts from the feed data before Instagram draws it.
-- **`instagram-feed.js`** (content script) passes the popup setting to that script
-  and hides the "Suggested for you" panel beside the feed, styled by
-  **`instagram-feed.css`**. Both only change what your browser shows, and send
-  nothing anywhere.
+  ads, suggested posts and unrequested reels from the data before Instagram
+  draws it.
+- **`instagram-feed.js`** (content script) passes the popup settings to that
+  script and hides the "Suggested for you" panel beside the feed.
+  **`instagram-feed.css`** hides that panel and the Reels button. These only
+  change what your browser shows, and send nothing anywhere.
 
 ### Instagram feed filter
 
@@ -108,6 +111,20 @@ Instagram to see the change. To see what it removes, open DevTools on the feed
   there instead of fetching empty pages.
 - The panel beside the feed is only recognized when Instagram is set to English.
 
+### Instagram Reels blocker
+
+It's on by default, under **Hide Reels** in the popup (reload Instagram after
+changing it).
+
+- The Reels button disappears from Instagram's menu.
+- If you reach the Reels tab anyway, it's empty.
+- A reel opened from a link (sent by text or DM, or found through a search) plays
+  on its own, with no more reels to scroll to. Instagram opens these in the same
+  viewer as the Reels tab, so the filter keeps only the reel whose code is in the
+  address.
+- Reels posted by people you follow still appear in your feed.
+- Like the feed filter, this relies on Instagram's internal data format.
+
 ### Notes / limitations
 
 - The grace period uses `setTimeout` rather than `chrome.alarms`, because alarms
@@ -126,6 +143,6 @@ Instagram to see the change. To see what it removes, open DevTools on the feed
 | `popup.html`    | Popup markup                                        |
 | `popup.css`     | Popup styles                                        |
 | `popup.js`      | Popup logic + per-site permission requests          |
-| `instagram-feed-data.js` | Removes ads and suggested posts from Instagram's feed data |
-| `instagram-feed.js`      | Passes the popup setting along; hides the suggestions panel |
-| `instagram-feed.css`     | Hides the panel `instagram-feed.js` marks                   |
+| `instagram-feed-data.js` | Removes ads, suggested posts and unrequested reels from Instagram's data |
+| `instagram-feed.js`      | Passes the popup settings along; hides the suggestions panel            |
+| `instagram-feed.css`     | Hides the suggestions panel and the Reels button                        |

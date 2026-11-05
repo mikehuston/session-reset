@@ -31,7 +31,7 @@
     <ul id="site-list"></ul>
     <p id="empty" class="empty">No sites yet. Add one above to get started.</p>
 
-    <!-- Instagram feed filter (applied by instagram-feed-data.js and instagram-feed.js) -->
+    <!-- Instagram filters (applied by instagram-feed-data.js and instagram-feed.js) -->
     <section id="instagram-section">
       <h2>Instagram</h2>
       <div class="setting-row">
@@ -41,7 +41,14 @@
         </label>
         <label for="instagram-filter">Hide ads and "Suggested for you" on the feed</label>
       </div>
-      <p class="hint">Reload Instagram after changing this.</p>
+      <div class="setting-row">
+        <label class="toggle">
+          <input id="instagram-reels" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+        <label for="instagram-reels">Hide Reels (reels people send you still open)</label>
+      </div>
+      <p class="hint">Reload Instagram after changing these.</p>
     </section>
 
     <!-- Recently reset: proof the extension is doing its job -->

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Session Reset",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minimum_chrome_version": "111",
-  "description": "Clears a site's cookies after you close its last tab, and hides ads and suggested posts on your Instagram feed.",
+  "description": "Clears a site's cookies after you close its last tab, and hides ads, suggested posts and Reels on Instagram.",
 
   "permissions": [
     "storage",

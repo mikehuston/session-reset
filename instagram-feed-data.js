@@ -1,33 +1,39 @@
 /**
- * Session Reset — Instagram feed filter, data side.
+ * Session Reset — Instagram filters, data side.
  *
- * Removes ads and "Suggested for you" posts from Instagram's feed data before
- * Instagram draws anything, so they never appear in the page at all.
+ * Removes things from Instagram's data before Instagram draws anything:
+ *   - Home feed: ads and "Suggested for you" posts.
+ *   - Reels: everything except a reel you opened directly (from a link someone
+ *     sent you, a DM, or a search result). The Reels tab itself shows nothing.
  *
  * Why the data and not the page: the feed keeps only the posts near the screen
  * in the page and remembers each post's height. Hiding posts after they render
  * throws that bookkeeping off and makes scrolling bounce. Posts that are never
  * rendered can't cause that.
  *
- * How: every page of the feed is JSON that Instagram reads with JSON.parse, both
- * the first page (embedded in the HTML) and later pages (loaded as you scroll).
- * Each feed item is typed: "media" (a post from someone you follow), "ad", or
- * "explore_story" (a suggested post). This script wraps JSON.parse and drops the
- * last two types from the feed. Anything else Instagram parses passes through
- * untouched, and if filtering ever fails the original data is returned.
+ * How: Instagram reads all of this data with JSON.parse, both the first page
+ * (embedded in the HTML) and later pages (loaded as you scroll). This script
+ * wraps JSON.parse and edits only the two lists below. Anything else Instagram
+ * parses passes through untouched, and if filtering ever fails the original data
+ * is returned.
  *
  * This runs in the page's own JavaScript world (manifest: "world": "MAIN") so it
  * can wrap Instagram's JSON.parse, which means it can't use chrome.* APIs. The
- * popup setting reaches it through an attribute set by instagram-feed.js.
+ * popup settings reach it through attributes set by instagram-feed.js.
  */
 (() => {
+  // The home feed. Each item is "media" (a post from someone you follow), "ad",
+  // or "explore_story" (a suggested post).
   const FEED_KEY = "xdt_api__v1__feed__timeline__connection";
+  const REMOVED_FEED_TYPES = { ad: "ad", explore_story: "suggested post" };
 
-  // Feed item types to remove.
-  const REMOVED_TYPES = { ad: "ad", explore_story: "suggested post" };
+  // The Reels viewer. Opening a reel's link shows that reel first, followed by
+  // an endless list of reels Instagram picks.
+  const REELS_KEY = "xdt_api__v1__clips__home__connection_v2";
 
-  // instagram-feed.js sets this to "off" when the filter is switched off.
-  const SETTING_ATTR = "data-session-reset-instagram-filter";
+  // instagram-feed.js sets these to "off" when a filter is switched off.
+  const FEED_SETTING_ATTR = "data-session-reset-instagram-filter";
+  const REELS_SETTING_ATTR = "data-session-reset-instagram-reels";
 
   // If this many feed pages in a row contain nothing but removed items, stop
   // asking Instagram for more. Otherwise, once you've seen every recent post from
@@ -39,33 +45,35 @@
 
   const nativeParse = JSON.parse;
 
-  function filterEnabled() {
-    return document.documentElement.getAttribute(SETTING_ATTR) !== "off";
+  function isOn(settingAttr) {
+    return document.documentElement.getAttribute(settingAttr) !== "off";
   }
 
-  /** Finds every feed connection ({ edges, page_info }) inside parsed data. */
-  function findFeedConnections(value, found = []) {
+  /** Finds every list ({ edges, page_info }) stored under `key` in parsed data. */
+  function findConnections(value, key, found = []) {
     if (!value || typeof value !== "object") return found;
-    if (value[FEED_KEY] && Array.isArray(value[FEED_KEY].edges)) {
-      found.push(value[FEED_KEY]);
-    }
+    if (value[key] && Array.isArray(value[key].edges)) found.push(value[key]);
     for (const child of Object.values(value)) {
-      if (child && typeof child === "object") findFeedConnections(child, found);
+      if (child && typeof child === "object") findConnections(child, key, found);
     }
     return found;
   }
 
+  // ---------------------------------------------------------------------------
+  // Home feed
+  // ---------------------------------------------------------------------------
+
   /** The removed type of a feed item, or null to keep it. */
-  function removedType(edge) {
+  function removedFeedType(edge) {
     const node = edge && edge.node;
     if (!node) return null;
-    return Object.keys(REMOVED_TYPES).find((type) => node[type] != null) || null;
+    return Object.keys(REMOVED_FEED_TYPES).find((type) => node[type] != null) || null;
   }
 
-  function filterConnection(connection) {
+  function filterFeed(connection) {
     const counts = {};
     const kept = connection.edges.filter((edge) => {
-      const type = removedType(edge);
+      const type = removedFeedType(edge);
       if (type) counts[type] = (counts[type] || 0) + 1;
       return !type;
     });
@@ -77,7 +85,7 @@
 
     connection.edges = kept;
     const summary = Object.entries(counts)
-      .map(([type, count]) => `${count} ${REMOVED_TYPES[type]}${count === 1 ? "" : "s"}`)
+      .map(([type, count]) => `${count} ${REMOVED_FEED_TYPES[type]}${count === 1 ? "" : "s"}`)
       .join(", ");
     console.log(`[Session Reset] Removed ${summary} from an Instagram feed page.`);
 
@@ -88,15 +96,56 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Reels
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The code of the reel being opened, from an address like /reel/<code>/ or
+   * /reels/<code>/. Null on the Reels tab itself (/reels/) and on audio pages.
+   */
+  function openedReelCode() {
+    const match = location.pathname.match(/^\/reels?\/([A-Za-z0-9_-]+)/);
+    return match && match[1] !== "audio" ? match[1] : null;
+  }
+
+  function filterReels(connection) {
+    const code = openedReelCode();
+    const kept = connection.edges.filter((edge) => code && edge?.node?.media?.code === code);
+    const removed = connection.edges.length - kept.length;
+
+    connection.edges = kept;
+    // Nothing more to load, so Instagram stops fetching reels for this viewer.
+    if (connection.page_info) connection.page_info.has_next_page = false;
+
+    if (removed > 0) {
+      console.log(
+        `[Session Reset] Removed ${removed} reel${removed === 1 ? "" : "s"}` +
+          (kept.length ? ", kept the one you opened." : ".")
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // JSON.parse wrapper
+  // ---------------------------------------------------------------------------
+
+  const FILTERS = [
+    { key: FEED_KEY, settingAttr: FEED_SETTING_ATTR, filter: filterFeed },
+    { key: REELS_KEY, settingAttr: REELS_SETTING_ATTR, filter: filterReels },
+  ];
+
   JSON.parse = function parse(text, reviver) {
     const result = nativeParse(text, reviver);
-    if (typeof text !== "string" || !text.includes(FEED_KEY) || !filterEnabled()) {
-      return result;
-    }
-    try {
-      findFeedConnections(result).forEach(filterConnection);
-    } catch (error) {
-      console.warn("[Session Reset] Couldn't filter Instagram feed data:", error);
+    if (typeof text !== "string") return result;
+
+    for (const { key, settingAttr, filter } of FILTERS) {
+      if (!text.includes(key) || !isOn(settingAttr)) continue;
+      try {
+        findConnections(result, key).forEach(filter);
+      } catch (error) {
+        console.warn("[Session Reset] Couldn't filter Instagram data:", error);
+      }
     }
     return result;
   };

@@ -6,3 +6,11 @@
 [data-session-reset-hidden] {
   display: none !important;
 }
+
+/*
+ * The Reels button in Instagram's menu, unless "Hide Reels" is switched off.
+ * Only the button goes: reels opened from a link still work.
+ */
+html:not([data-session-reset-instagram-reels="off"]) a[href="/reels/"] {
+  display: none !important;
+}
