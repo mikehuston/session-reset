@@ -9,8 +9,13 @@
  *
  * Design notes:
  *   - `chrome.tabs.onRemoved` only gives us a tabId, not a URL, so we keep a
- *     small in-memory map of tabId -> hostname (populated from onUpdated and a
- *     one-time scan on startup). We look the host up when the tab closes.
+ *     small map of tabId -> hostname (populated from onUpdated and a scan of open
+ *     tabs). We look the host up when the tab closes.
+ *   - Chrome stops this service worker after ~30s without events, which wipes
+ *     anything in memory. If closing a tab is what wakes it, the closed tab is
+ *     already gone from chrome.tabs, so its host can't be recovered from there.
+ *     The map is therefore also saved in chrome.storage.session, which survives
+ *     the worker stopping and is cleared when the browser closes.
  *   - The grace period uses `setTimeout`. `chrome.alarms` has a 30s minimum, so
  *     it can't express a 5s delay. A service worker stays alive for ~30s after
  *     an event (the tab-close event we just handled), which comfortably covers
@@ -23,7 +28,9 @@
 const GRACE_MS = 5000;
 
 // tabId -> hostname, for tabs we can see (i.e. configured sites we have access to).
+// Mirrored to chrome.storage.session under this key (see design notes above).
 const tabHosts = new Map();
+const TAB_HOSTS_KEY = "tabHosts";
 
 // site host -> timeout id, for clears currently waiting out their grace period.
 const pendingTimers = new Map();
@@ -193,14 +200,24 @@ async function clearCookiesForHost(siteHost) {
 // Tab tracking
 // ---------------------------------------------------------------------------
 
+/** Saves the tab map so it survives the service worker being stopped. */
+function saveTabHosts() {
+  chrome.storage.session
+    .set({ [TAB_HOSTS_KEY]: Object.fromEntries(tabHosts) })
+    .catch((err) => log("Couldn't save open tabs:", err));
+}
+
 /** Record a tab's host and cancel any grace timer the tab "rescues". */
 function trackTab(tabId, url) {
   const host = parseHost(url);
   if (!host) {
-    tabHosts.delete(tabId);
+    if (tabHosts.delete(tabId)) saveTabHosts();
     return;
   }
-  tabHosts.set(tabId, host);
+  if (tabHosts.get(tabId) !== host) {
+    tabHosts.set(tabId, host);
+    saveTabHosts();
+  }
 
   // Reopening/navigating to a site that's waiting to be cleared cancels it.
   for (const siteHost of pendingTimers.keys()) {
@@ -211,15 +228,38 @@ function trackTab(tabId, url) {
   }
 }
 
-/** Rebuild the tabId -> host map from scratch (used when the worker starts). */
-async function rebuildTabHosts() {
-  tabHosts.clear();
+/** Adds the hosts of all currently open tabs to the map. */
+async function addOpenTabs() {
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
     const host = parseHost(tab.url);
     if (host) tabHosts.set(tab.id, host);
   }
+  saveTabHosts();
 }
+
+/**
+ * Restores the map when the worker wakes up: first what was saved before it
+ * stopped, then any tabs open now. Nothing is dropped here, because the event
+ * that woke the worker may be the closing of a saved tab.
+ */
+async function restoreTabHosts() {
+  const { [TAB_HOSTS_KEY]: saved = {} } = await chrome.storage.session.get(TAB_HOSTS_KEY);
+  for (const [tabId, host] of Object.entries(saved)) {
+    if (!tabHosts.has(Number(tabId))) tabHosts.set(Number(tabId), host);
+  }
+  await addOpenTabs();
+}
+
+/** Starts the map over from the open tabs (on browser start and install). */
+async function rebuildTabHosts() {
+  await tabHostsReady;
+  tabHosts.clear();
+  await addOpenTabs();
+}
+
+// Event handlers that read the map wait for this first.
+const tabHostsReady = restoreTabHosts().catch((err) => log("Couldn't restore open tabs:", err));
 
 // ---------------------------------------------------------------------------
 // Event wiring
@@ -234,8 +274,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // The core trigger: a tab was closed.
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await tabHostsReady;
   const host = tabHosts.get(tabId);
-  tabHosts.delete(tabId);
+  if (tabHosts.delete(tabId)) saveTabHosts();
   if (!host) return;
 
   const sites = await getSites();
@@ -248,9 +289,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   scheduleClear(site.host);
 });
 
-// Rebuild state whenever the worker (re)starts.
+// A fresh browser session or a fresh install: no closed tab to account for, so
+// start the map over and drop entries for tabs that no longer exist.
 chrome.runtime.onStartup.addListener(rebuildTabHosts);
 chrome.runtime.onInstalled.addListener(rebuildTabHosts);
-
-// Also rebuild on cold module load (covers the worker being respawned by an event).
-rebuildTabHosts();
